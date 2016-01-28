@@ -374,7 +374,7 @@ class CloudController(object):
         This action doesn't apply to security groups for use in EC2-Classic.
         """
 
-    @module_and_param_types(instance, 'ami_id', 'int', 'int',
+    @module_and_param_types(instance, 'ami_id', 'int',
                             'str255', 'sg_ids',
                             'security_group_strs', 'str', 'str',
                             'dummy', 'aki_id', 'ari_id',
@@ -384,9 +384,9 @@ class CloudController(object):
                             'ip', 'str64',
                             'dummy', 'dummy',
                             'bool')
-    def run_instances(self, context, image_id, min_count, max_count,
+    def run_instances(self, context, image_id, instance_count,
                       key_name=None, security_group_id=None,
-                      security_group=None, user_data=None, instance_type=None,
+                      security_group=None, user_data=None, instance_type_id=None,
                       placement=None, kernel_id=None, ramdisk_id=None,
                       block_device_mapping=None, monitoring=None,
                       subnet_id=None, disable_api_termination=None,
@@ -399,20 +399,16 @@ class CloudController(object):
         Args:
             context (RequestContext): The request context.
             image_id (str): The ID of the AMI.
-            min_count (int): The minimum number of instances to launch.
-                If you specify a minimum that is more instances than EC2 can
+            instance_count (int): The number of instances to launch.
+                If you specify a number that is more instances than EC2 can
                 launch in the target Availability Zone, EC2 launches no
                 instances.
-            max_count (int): The maximum number of instances to launch.
-                If you specify more instances than EC2 can launch in the target
-                Availability Zone, EC2 launches the largest possible number
-                of instances above max_count.
             key_name (str): The name of the key pair.
             security_group_id (list of str): One or more security group IDs.
             security_group (list of str): One or more security group names.
                 For VPC mode, you must use security_group_id.
             user_data (str): Base64-encoded MIME user data for the instances.
-            instance_type (str): The instance type.
+            instance_type_id (str): The instance type.
             placement (dict): Dict can contain:
                 availability_zone (str): Availability Zone for the instance.
                 group_name (str): The name of an existing placement group.
@@ -870,7 +866,6 @@ class CloudController(object):
         Returns:
             A list of volumes.
         """
-
     @module_and_param_types(snapshot, 'vol_id', 'str')
     def create_snapshot(self, context, volume_id, description=None):
         """Creates a snapshot of an EBS volume.
@@ -1022,22 +1017,13 @@ class CloudController(object):
             true if the request succeeds.
         """
 
-    @module_and_param_types(image, 'strs', 'amiariaki_ids',
-                            'strs', 'filter')
-    def describe_images(self, context, executable_by=None, image_id=None,
-                        owner=None, filter=None):
+    @module_and_param_types(image, 'amiariaki_ids')
+    def describe_images(self, context, image_id=None):
         """Describes one or more of the images available to you.
 
         Args:
             context (RequestContext): The request context.
-            executable_by (list of str): Filters the images by users with
-                explicit launch permissions.
-                Not used now.
             image_id (list of str): One or more image IDs.
-            owner (list of str): Filters the images by the owner.
-                Not used now.
-            filter (list of filter dict): You can specify filters so that the
-                response includes information for only certain images.
 
         Returns:
             A list of images.

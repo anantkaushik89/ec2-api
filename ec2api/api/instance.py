@@ -77,9 +77,9 @@ def get_instance_engine():
         return InstanceEngineNova()
 
 
-def run_instances(context, image_id, min_count, max_count,
+def run_instances(context, image_id, instance_count,
                   key_name=None, security_group_id=None,
-                  security_group=None, user_data=None, instance_type=None,
+                  security_group=None, user_data=None, instance_type_id=None,
                   placement=None, kernel_id=None, ramdisk_id=None,
                   block_device_mapping=None, monitoring=None,
                   subnet_id=None, disable_api_termination=None,
@@ -88,7 +88,8 @@ def run_instances(context, image_id, min_count, max_count,
                   network_interface=None, iam_instance_profile=None,
                   ebs_optimized=None):
 
-    _check_min_max_count(min_count, max_count)
+    #_check_min_max_count(min_count, max_count)
+    _check_instance_count(instance_count)
 
     if client_token:
         reservations = describe_instances(context,
@@ -109,13 +110,13 @@ def run_instances(context, image_id, min_count, max_count,
 
     nova = clients.nova(context)
     try:
-        if instance_type is None:
-            instance_type = CONF.default_flavor
+        if instance_type_id is None:
+            instance_type_id = CONF.default_flavor
         os_flavor = next(f for f in nova.flavors.list()
-                         if f.name == instance_type)
+                         if f.name == instance_type_id)
     except StopIteration:
-        raise exception.InvalidParameterValue(value=instance_type,
-                                              parameter='InstanceType')
+        raise exception.InvalidParameterValue(value=instance_type_id,
+                                              parameter='InstanceTypeId')
 
     bdm = _parse_block_device_mapping(context, block_device_mapping)
     availability_zone = (placement or {}).get('availability_zone')
@@ -125,7 +126,7 @@ def run_instances(context, image_id, min_count, max_count,
     vpc_id, launch_context = instance_engine.get_vpc_and_build_launch_context(
         context, security_group,
         subnet_id, private_ip_address, security_group_id, network_interface,
-        multiple_instances=max_count > 1)
+        multiple_instances=instance_count > 1)
 
     ec2_reservation_id = _generate_reservation_id()
     instance_ids = []
@@ -142,8 +143,8 @@ def run_instances(context, image_id, min_count, max_count,
 
         # TODO(ft): do correct error messages on create failures. For
         # example, overlimit, ip lack, ip overlapping, etc
-        for launch_index in range(max_count):
-            if launch_index >= min_count:
+        for launch_index in range(instance_count):
+            if launch_index >= instance_count:
                 cleaner.approveChanges()
 
             extra_params = (
@@ -565,7 +566,6 @@ def describe_instance_attribute(context, instance_id, attribute):
 
 def _format_reservation(context, reservation, formatted_instances, os_groups):
     return {
-        'reservationId': reservation['id'],
         'ownerId': reservation['owner_id'],
         'instancesSet': sorted(formatted_instances,
                                key=lambda i: i['amiLaunchIndex']),
@@ -590,7 +590,6 @@ def _format_instance(context, instance, os_instance, ec2_network_interfaces,
         'placement': {
             'availabilityZone': getattr(os_instance,
                                         'OS-EXT-AZ:availability_zone')},
-        'productCodesSet': None,
         'instanceState': _cloud_state_description(
                                 getattr(os_instance, 'OS-EXT-STS:vm_state')),
     }
@@ -703,22 +702,32 @@ def _remove_instances(context, instances):
                                                                eni['id'])
         db_api.delete_item(context, instance_id)
 
+def _check_instance_count(instance_count):
+    instance_count = int(instance_count)
+    # TODO: figure out appropriate aws message and use them
+    # This method is not checking if instance count is more
+    # than the quota. We need to make sure that it is happen-
+    # -ing somewhere.
+    if instance_count < 1:
+        msg = _('Instance count must be greater than zero')
+        raise exception.InvalidParameterValue(msg)
 
-def _check_min_max_count(min_count, max_count):
-    # TODO(ft): figure out appropriate aws message and use them
-    min_count = int(min_count)
-    max_count = int(max_count)
+# TODO: Remove this method once requirements are finalized
+# def _check_min_max_count(min_count, max_count):
+#    # TODO(ft): figure out appropriate aws message and use them
+#    min_count = int(min_count)
+#    max_count = int(max_count)
 
-    if min_count < 1:
-        msg = _('Minimum instance count must be greater than zero')
-        raise exception.InvalidParameterValue(msg)
-    elif max_count < 1:
-        msg = _('Maximum instance count must be greater than zero')
-        raise exception.InvalidParameterValue(msg)
-    elif min_count > max_count:
-        msg = _('Maximum instance count must not be smaller than '
-                'minimum instance count')
-        raise exception.InvalidParameterValue(msg)
+#    if min_count < 1:
+#        msg = _('Minimum instance count must be greater than zero')
+#        raise exception.InvalidParameterValue(msg)
+#    elif max_count < 1:
+#        msg = _('Maximum instance count must be greater than zero')
+#        raise exception.InvalidParameterValue(msg)
+#    elif min_count > max_count:
+#        msg = _('Maximum instance count must not be smaller than '
+#                'minimum instance count')
+#        raise exception.InvalidParameterValue(msg)
 
 
 def _parse_image_parameters(context, image_id, kernel_id, ramdisk_id):
