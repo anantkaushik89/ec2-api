@@ -291,7 +291,6 @@ class EC2KeystoneAuth(wsgi.Middleware):
             data = jsonutils.dumps(creds)
 
         verify = CONF.ssl_ca_file or not CONF.ssl_insecure
-        print(keystone_validation_url, data, headers)
         response = requests.request('POST', keystone_validation_url,
                              verify=False, data=data, headers=headers)
 
@@ -355,11 +354,13 @@ class Requestify(wsgi.Middleware):
 
     def _execute_sbs_api(self, action, args, context):
         sbs_url = CONF.sbs_jcs_endpoint
+        request_id = context.request_id
         params = args
         params['Action'] = action
         params['ProjectId'] = context.project_id
         params['UserId'] = context.user_id
         params['TokenId'] = context.auth_token
+        params['RequestId'] = request_id
         headers = {'Content-Type': 'application/json'}
 
         verify = CONF.ssl_ca_file or not CONF.ssl_insecure
@@ -367,7 +368,6 @@ class Requestify(wsgi.Middleware):
                                     params=params, headers=headers)
 
         status_code = response.status_code
-        request_id = context.request_id
         if status_code != 200:
             msg = response.text
             return faults.ec2_error_response(request_id, "BadRequest", msg,
