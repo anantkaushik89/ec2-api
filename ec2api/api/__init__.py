@@ -291,6 +291,7 @@ class EC2KeystoneAuth(wsgi.Middleware):
             data = jsonutils.dumps(creds)
 
         verify = CONF.ssl_ca_file or not CONF.ssl_insecure
+        print(keystone_validation_url, data, headers)
         response = requests.request('POST', keystone_validation_url,
                              verify=False, data=data, headers=headers)
 
@@ -303,7 +304,7 @@ class EC2KeystoneAuth(wsgi.Middleware):
         LOG.info(result)
         try:
             user_id = result.get('user_id')
-            project_id = result.get('domain_id')
+            project_id = result.get('account_id')
             if auth_token:
                 token_id = auth_token
             else:
@@ -352,21 +353,21 @@ class Requestify(wsgi.Middleware):
         self.sbs_apis = []
         self._read_sbs_apis_list()
 
-    def _execute_sbs_api(self, action, req):
+    def _execute_sbs_api(self, action, args, context):
         sbs_url = CONF.sbs_jcs_endpoint
-        params = req.params
-        context = req.environ['ec2api.context']
+        params = args
+        params['Action'] = action
         params['ProjectId'] = context.project_id
         params['UserId'] = context.user_id
         params['TokenId'] = context.auth_token
-        params = jsonutils.dumps(params)
         headers = {'Content-Type': 'application/json'}
 
         verify = CONF.ssl_ca_file or not CONF.ssl_insecure
         response = requests.request('POST', sbs_url, verify=False,
-                                    data=data, headers=headers)
+                                    params=params, headers=headers)
 
         status_code = response.status_code
+        request_id = context.request_id
         if status_code != 200:
             msg = response.text
             return faults.ec2_error_response(request_id, "BadRequest", msg,
@@ -375,7 +376,7 @@ class Requestify(wsgi.Middleware):
             resp = webob.Response()
             resp.status = 200
             resp.headers['Content-Type'] = 'text/xml'
-            resp.body = str(response.json())
+            resp.body = str(response.text)
             return resp
         
     @webob.dec.wsgify(RequestClass=wsgi.Request)
@@ -415,7 +416,8 @@ class Requestify(wsgi.Middleware):
         # Check if sbs_apis.list file is present and if the action
         # belongs in that list
         if self.sbs_apis and action in self.sbs_apis:
-            return self._execute_sbs_api(action, req)
+            return self._execute_sbs_api(action, args,
+                                    req.environ['ec2api.context'])
 
         # Success!
         api_request = apirequest.APIRequest(
