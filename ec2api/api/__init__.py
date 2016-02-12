@@ -368,16 +368,16 @@ class Requestify(wsgi.Middleware):
                                     params=params, headers=headers)
 
         status_code = response.status_code
-        if status_code != 200:
-            msg = response.text
-            return faults.ec2_error_response(request_id, "BadRequest", msg,
-                                             status=status_code)
-        else:
-            resp = webob.Response()
-            resp.status = 200
-            resp.headers['Content-Type'] = 'text/xml'
-            resp.body = str(response.text)
-            return resp
+        #if status_code != 200:
+        #    msg = response.text
+        #    return faults.ec2_error_response(request_id, "BadRequest", msg,
+        #                                     status=status_code)
+        #else:
+        resp = webob.Response()
+        resp.status = status_code
+        resp.headers['Content-Type'] = 'text/xml'
+        resp.body = str(response.text)
+        return resp
         
     @webob.dec.wsgify(RequestClass=wsgi.Request)
     def __call__(self, req):

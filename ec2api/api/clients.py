@@ -39,9 +39,19 @@ service_catalog_opts = [
                help='Endpoint for Network Service '),
     ]
 
+ec2_opts = [
+  cfg.StrOpt('cinder_service_type',
+           default='volumev2',
+               help='Service type of Cinder Volume API, registered in Keystone catalog.'),
+  cfg.StrOpt('volume_api_version',
+               default='2',
+               help='volume api version'),
+]
+
 SERVICE_CATALOG_GROUP = 'service_catalog'
 
 CONF = cfg.CONF
+CONF.register_opts(ec2_opts)
 CONF.register_opts(service_catalog_opts, SERVICE_CATALOG_GROUP)
 
 
@@ -143,7 +153,7 @@ def cinder(context):
         return nova(context, 'volume')
 
     args = {
-        'service_type': 'volume',
+        'service_type': CONF.cinder_service_type,
         'auth_url': CONF.keystone_url,
         'username': None,
         'api_key': None,
@@ -151,8 +161,8 @@ def cinder(context):
         'cacert': CONF.ssl_ca_file
     }
 
-    _cinder = cinderclient.Client('1', **args)
-    management_url = _url_for(context, service_type='volume')
+    _cinder = cinderclient.Client(CONF.volume_api_version, **args)
+    management_url = _url_for(context, service_type=CONF.cinder_service_type)
     _cinder.client.auth_token = context.auth_token
     _cinder.client.management_url = management_url
 
@@ -189,7 +199,6 @@ def _url_for(context, **kwargs):
         url = url.replace('TENANT_ID', context.project_id)
     else:
         logger.warning(_LW("Unknown service type in JCS Layer."))
-    logger.warn(url)
     return url
 
 
